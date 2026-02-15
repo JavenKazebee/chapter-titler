@@ -21,10 +21,8 @@ const chapterTitles = ref("");
 const offset = ref(false);
 const offsetTime = ref("");
 
-// Dialog (TODO: remove clientSecret and clientID from app)
+// Dialog
 const vimeoSettingsDialog = ref(false);
-const vimeoClientID = ref("");
-const vimeoClientSecret = ref("");
 const vimeoAccessToken = ref("");
 
 // Upload
@@ -192,8 +190,6 @@ async function defaultOffset() {
 
     <Dialog v-model:visible="vimeoSettingsDialog" modal header="Vimeo Authentication">
       <div class="flex flex-col items-center gap-4">
-        <InputText v-model="vimeoClientID" placeholder="Client ID"/>
-        <InputText v-model="vimeoClientSecret" placeholder="Client Secret"/>
         <InputText v-model="vimeoAccessToken" placeholder="Access Token"/>
         <Button label="Save" @click="saveAuthentication"/>
       </div>
