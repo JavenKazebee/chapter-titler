@@ -28,6 +28,10 @@ enum AppError {
     },
     Vimeo {
         message: String,
+    },
+    RateLimit {
+        message: String,
+        reset_time: String,
     }
 }
 
@@ -48,6 +52,13 @@ impl AppError {
 
     fn vimeo(message: &str) -> AppError {
         AppError::Vimeo { message: message.to_string() }
+    }
+
+    fn rate_limit(message: &str, reset_time: &str) -> AppError {
+        AppError::RateLimit {
+            message: message.to_string(),
+            reset_time: reset_time.to_string(),
+        }
     }
 }
 
@@ -132,7 +143,7 @@ async fn upload_chapter_titles(video_id: &str, text: &str, offset: &str, handle:
                         .and_then(|h| h.to_str().ok())
                         .unwrap_or("unkown");
 
-                    return Err(AppError::vimeo(&format!("You've been rate limited. Resets at: {reset_time}")))
+                    return Err(AppError::rate_limit("You've been rate limited.", reset_time));
                 },
 
                 500..=599 => return Err(AppError::vimeo("Vimeo is currenlty experiencing server issues. Please try again later.")),

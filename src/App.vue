@@ -1,12 +1,61 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { InputMask, InputText } from "primevue";
 import { load } from "@tauri-apps/plugin-store";
 import { listen } from "@tauri-apps/api/event";
 import { useToast } from 'primevue/usetoast';
 
+// Human-readable countdown from seconds remaining
+function formatTimeRemaining(secondsLeft: number): string {
+  if (secondsLeft <= 0) return "Resetting now…";
+  const hours = Math.floor(secondsLeft / 3600);
+  const minutes = Math.floor((secondsLeft % 3600) / 60);
+  const seconds = Math.floor(secondsLeft % 60);
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  return parts.join(" ");
+}
+
+// Toasts
 const toast = useToast();
+const timeRemaining = ref("");
+const rateLimitIntervalId = ref<ReturnType<typeof setInterval> | null>(null);
+const rateLimitMessageText = ref("");
+const rateLimitToastMessage = ref<{ severity: string; summary: string; detail: string; group: string } | null>(null);
+
+function startRateLimitCountdown(resetTimeStr: string) {
+  const resetTimestamp = parseInt(resetTimeStr, 10);
+  if (Number.isNaN(resetTimestamp)) {
+    timeRemaining.value = resetTimeStr; // e.g. "unknown"
+    return;
+  }
+  function tick() {
+    const now = Math.floor(Date.now() / 1000);
+    const left = resetTimestamp - now;
+    timeRemaining.value = formatTimeRemaining(left);
+    if (rateLimitToastMessage.value) {
+      rateLimitToastMessage.value.detail = `${rateLimitMessageText.value} Resets in ${timeRemaining.value}`;
+      toast.remove(rateLimitToastMessage.value);
+      toast.add(rateLimitToastMessage.value);
+    }
+    if (left <= 0 && rateLimitIntervalId.value !== null) {
+      clearInterval(rateLimitIntervalId.value);
+      rateLimitIntervalId.value = null;
+      rateLimitToastMessage.value = null;
+    }
+  }
+  tick();
+  rateLimitIntervalId.value = setInterval(tick, 1000);
+}
+
+onUnmounted(() => {
+  if (rateLimitIntervalId.value !== null) {
+    clearInterval(rateLimitIntervalId.value);
+  }
+});
 
 // Main page
 const videoId = ref("");
@@ -79,6 +128,9 @@ async function upload() {
       toast.add({ severity: 'error', summary: 'Authentication Error', detail: `Authentication Error: ${data.message}`, group: 'bc' });
     } else if (type === 'Vimeo') {
       toast.add({ severity: 'error', summary: 'Vimeo Error', detail: `Vimeo Error: ${data.message}`, group: 'bc' });
+    } else if (type == 'RateLimit') {
+      startRateLimitCountdown(data.reset_time);
+      toast.add({ severity: 'error', summary: 'Rate Limit Error', detail: data.message, group: 'bc' });
     } else {
       toast.add({ severity: 'error', summary: 'Unknown Error', detail: 'An uknown error has occured.', group: 'bc' });
     }
@@ -99,7 +151,18 @@ async function defaultOffset() {
 
 <template>
   <main>
-    <Toast position="bottom-center" group="bc"/>
+    <Toast position="bottom-center" group="bc">
+      <template #message="{ message }">
+        <div v-if="message.summary === 'Rate Limit Error'" class="flex flex-col gap-1">
+          <span class="font-semibold">{{ message.summary }}</span>
+          <span>{{ message.detail }} Resets in <strong>{{ timeRemaining }}</strong></span>
+        </div>
+        <template v-else>
+          <span class="font-semibold">{{ message.summary }}</span>
+          <span>{{ message.detail }}</span>
+        </template>
+      </template>
+    </Toast>
     <div class="flex flex-col items-center p-4 gap-4">
 
       <div class="flex w-full items-center justify-between">
