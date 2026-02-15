@@ -78,7 +78,7 @@ async function upload() {
     } else if (type === 'Auth') {
       toast.add({ severity: 'error', summary: 'Authentication Error', detail: `Authentication Error: ${data.message}`, group: 'bc' });
     } else if (type === 'Vimeo') {
-      toast.add({ severity: 'error', summary: 'Vimeo Error', detail: `Vimeo API Error (${data.status}): ${data.message}`, group: 'bc' });
+      toast.add({ severity: 'error', summary: 'Vimeo Error', detail: `Vimeo Error: ${data.message}`, group: 'bc' });
     } else {
       toast.add({ severity: 'error', summary: 'Unknown Error', detail: 'An uknown error has occured.', group: 'bc' });
     }
