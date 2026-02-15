@@ -6,56 +6,14 @@ import { load } from "@tauri-apps/plugin-store";
 import { listen } from "@tauri-apps/api/event";
 import { useToast } from 'primevue/usetoast';
 
-// Human-readable countdown from seconds remaining
-function formatTimeRemaining(secondsLeft: number): string {
-  if (secondsLeft <= 0) return "Resetting now…";
-  const hours = Math.floor(secondsLeft / 3600);
-  const minutes = Math.floor((secondsLeft % 3600) / 60);
-  const seconds = Math.floor(secondsLeft % 60);
-  const parts: string[] = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  parts.push(`${seconds}s`);
-  return parts.join(" ");
-}
+// -----------------------------------------------------------------------------
+// Const (state, types, store)
+// -----------------------------------------------------------------------------
 
-// Toasts
+// Toast / rate limit
 const toast = useToast();
 const timeRemaining = ref("");
 const rateLimitIntervalId = ref<ReturnType<typeof setInterval> | null>(null);
-const rateLimitMessageText = ref("");
-const rateLimitToastMessage = ref<{ severity: string; summary: string; detail: string; group: string } | null>(null);
-
-function startRateLimitCountdown(resetTimeStr: string) {
-  const resetTimestamp = parseInt(resetTimeStr, 10);
-  if (Number.isNaN(resetTimestamp)) {
-    timeRemaining.value = resetTimeStr; // e.g. "unknown"
-    return;
-  }
-  function tick() {
-    const now = Math.floor(Date.now() / 1000);
-    const left = resetTimestamp - now;
-    timeRemaining.value = formatTimeRemaining(left);
-    if (rateLimitToastMessage.value) {
-      rateLimitToastMessage.value.detail = `${rateLimitMessageText.value} Resets in ${timeRemaining.value}`;
-      toast.remove(rateLimitToastMessage.value);
-      toast.add(rateLimitToastMessage.value);
-    }
-    if (left <= 0 && rateLimitIntervalId.value !== null) {
-      clearInterval(rateLimitIntervalId.value);
-      rateLimitIntervalId.value = null;
-      rateLimitToastMessage.value = null;
-    }
-  }
-  tick();
-  rateLimitIntervalId.value = setInterval(tick, 1000);
-}
-
-onUnmounted(() => {
-  if (rateLimitIntervalId.value !== null) {
-    clearInterval(rateLimitIntervalId.value);
-  }
-});
 
 // Main page
 const videoId = ref("");
@@ -63,8 +21,7 @@ const chapterTitles = ref("");
 const offset = ref(false);
 const offsetTime = ref("");
 
-// Dialog
-// TODO remove clientSecret and clientID from app
+// Dialog (TODO: remove clientSecret and clientID from app)
 const vimeoSettingsDialog = ref(false);
 const vimeoClientID = ref("");
 const vimeoClientSecret = ref("");
@@ -84,44 +41,81 @@ interface ProgressPayload {
   title: string;
 }
 
+// -----------------------------------------------------------------------------
+// Lifecycle
+// -----------------------------------------------------------------------------
+
 onMounted(async () => {
   store = await load('data.json');
-
   vimeoAccessToken.value = await store.get('access_token');
-})
+});
+
+onUnmounted(() => {
+  if (rateLimitIntervalId.value !== null) {
+    clearInterval(rateLimitIntervalId.value);
+  }
+});
+
+// -----------------------------------------------------------------------------
+// Other functions
+// -----------------------------------------------------------------------------
+
+function formatTimeRemaining(secondsLeft: number): string {
+  if (secondsLeft <= 0) return "Resetting now…";
+  const hours = Math.floor(secondsLeft / 3600);
+  const minutes = Math.floor((secondsLeft % 3600) / 60);
+  const seconds = Math.floor(secondsLeft % 60);
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  return parts.join(" ");
+}
+
+function startRateLimitCountdown(resetTimeStr: string) {
+  const resetDate = new Date(resetTimeStr);
+  if (Number.isNaN(resetDate.getTime())) {
+    timeRemaining.value = resetTimeStr; // e.g. "unknown"
+    return;
+  }
+  const resetMs = resetDate.getTime();
+  function tick() {
+    const left = (resetMs - Date.now()) / 1000;
+    timeRemaining.value = formatTimeRemaining(left);
+    if (left <= 0 && rateLimitIntervalId.value !== null) {
+      clearInterval(rateLimitIntervalId.value);
+      rateLimitIntervalId.value = null;
+    }
+  }
+  tick();
+  rateLimitIntervalId.value = setInterval(tick, 1000);
+}
 
 async function saveAuthentication() {
-  if(!store.value) {
+  if (!store) {
     toast.add({ severity: 'error', summary: "Error", detail: 'Failed to save authentication data.', life: 5000, group: 'bc' });
     return;
   }
-
   vimeoSettingsDialog.value = false;
   await store.set('access_token', vimeoAccessToken.value);
 }
 
 async function upload() {
-  // Reset state
   isUploading.value = true;
-
-  // Listen for progress from Rust
   const listener = await listen<ProgressPayload>("upload-progress", (event) => {
     const { current, total, title } = event.payload;
     progress.value = Math.round((current / total) * 100);
     statusMessage.value = `Uploading: ${title}`;
-    
-  })
+  });
 
   try {
-    await invoke('upload_chapter_titles', { 
+    await invoke('upload_chapter_titles', {
       videoId: videoId.value,
       text: chapterTitles.value,
       offset: offset.value ? offsetTime.value : "00:00",
     });
   } catch (err: any) {
     const { type, data } = err;
-
-    // TODO improve error handling
     if (type === 'Parse') {
       toast.add({ severity: 'error', summary: 'Parsing Error', detail: `Typo on line ${data.line_number}: ${data.message}\n"${data.raw_line}"`, group: 'bc' });
     } else if (type === 'Auth') {
@@ -135,7 +129,7 @@ async function upload() {
       toast.add({ severity: 'error', summary: 'Unknown Error', detail: 'An uknown error has occured.', group: 'bc' });
     }
   } finally {
-    listener(); // stop listening
+    listener();
     isUploading.value = false;
     progress.value = 0;
     statusMessage.value = "";
@@ -143,8 +137,8 @@ async function upload() {
 }
 
 async function defaultOffset() {
-  if(offset.value) {
-    
+  if (offset.value) {
+    // TODO
   }
 }
 </script>
@@ -155,7 +149,7 @@ async function defaultOffset() {
       <template #message="{ message }">
         <div v-if="message.summary === 'Rate Limit Error'" class="flex flex-col gap-1">
           <span class="font-semibold">{{ message.summary }}</span>
-          <span>{{ message.detail }} Resets in <strong>{{ timeRemaining }}</strong></span>
+          <span>{{ message.detail }} Try again in <strong>{{ timeRemaining }}</strong></span>
         </div>
         <template v-else>
           <span class="font-semibold">{{ message.summary }}</span>
