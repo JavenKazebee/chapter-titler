@@ -158,6 +158,28 @@ async fn upload_chapter_titles(video_id: &str, text: &str, offset: &str, handle:
     Ok(())
 }
 
+#[tauri::command]
+async fn get_default_offset(text: &str) -> Result<String, AppError> {
+    text
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
+            }
+
+            match parse_chapter_title(line) {
+                Ok(chapter) => Some(Ok(chapter.timestamp)),
+                Err(err) => Some(Err(AppError::parse(&err, 0, line))),
+            }
+
+
+        })
+        .nth(1)
+        .unwrap_or(Err(AppError::parse("No chapters found.", 0, "")))
+        .map(|timestamp| format!("{:02}:{:02}:{:02}", timestamp / 3600, (timestamp % 3600) / 60, timestamp % 60))
+}
+
 fn parse_chapter_titles(text: &str) -> Result<Vec<ChapterTitle>, AppError> {
     text
         .lines()
@@ -225,6 +247,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             upload_chapter_titles,
+            get_default_offset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

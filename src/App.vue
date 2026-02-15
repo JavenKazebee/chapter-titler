@@ -136,7 +136,14 @@ async function upload() {
 
 async function defaultOffset() {
   if (offset.value) {
-    // TODO
+    try {
+      offsetTime.value = await invoke('get_default_offset', {
+        text: chapterTitles.value,
+      });
+    } catch(err: any) {
+      offsetTime.value = "00:00:00";
+    }
+    
   }
 }
 </script>
@@ -155,6 +162,7 @@ async function defaultOffset() {
         </template>
       </template>
     </Toast>
+
     <div class="flex flex-col items-center p-4 gap-4">
 
       <div class="flex w-full items-center justify-between">
