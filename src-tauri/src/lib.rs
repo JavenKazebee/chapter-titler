@@ -63,11 +63,6 @@ impl AppError {
 }
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[tauri::command]
 async fn upload_chapter_titles(video_id: &str, text: &str, offset: &str, handle: tauri::AppHandle) -> Result<(), AppError> {
     let offset = if offset.trim().is_empty() {
         0
@@ -229,7 +224,6 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             upload_chapter_titles,
         ])
         .run(tauri::generate_context!())
