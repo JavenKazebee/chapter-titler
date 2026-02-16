@@ -5,6 +5,8 @@ import { InputMask, InputText } from "primevue";
 import { load } from "@tauri-apps/plugin-store";
 import { listen } from "@tauri-apps/api/event";
 import { useToast } from 'primevue/usetoast';
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { getVersion } from '@tauri-apps/api/app';
 
 // -----------------------------------------------------------------------------
 // Const (state, types, store)
@@ -39,6 +41,13 @@ interface ProgressPayload {
   title: string;
 }
 
+// Updater
+const currentVersion = ref("");
+const pendingUpdate = ref<Update | null>(null);
+const updateAvailable = ref(false);
+const isUpdating = ref(false);
+const releaseNotesDialog = ref(false);
+
 // -----------------------------------------------------------------------------
 // Lifecycle
 // -----------------------------------------------------------------------------
@@ -46,6 +55,8 @@ interface ProgressPayload {
 onMounted(async () => {
   store = await load('data.json');
   vimeoAccessToken.value = await store.get('access_token');
+  checkForUpdates();
+  currentVersion.value = await getVersion();
 });
 
 onUnmounted(() => {
@@ -146,6 +157,36 @@ async function defaultOffset() {
     
   }
 }
+
+async function checkForUpdates() {
+  try {
+    const update = await check();
+    if (update) {
+      pendingUpdate.value = update;
+      updateAvailable.value = true;
+    }
+  } catch (err: any) {
+    console.error(err);
+  }
+}
+
+async function downloadUpdate() {
+  const update = pendingUpdate.value;
+  if (!update) return;
+  isUpdating.value = true;
+  try {
+    await update.downloadAndInstall();
+    toast.add({ severity: "success", summary: "Update installed", detail: "Restart the app to complete the update.", group: "tr" });
+  } catch (err: any) {
+    toast.add({ severity: "error", summary: "Update failed", detail: err?.message ?? "Download failed.", group: "tr" });
+  } finally {
+    isUpdating.value = false;
+  }
+}
+
+function showReleaseNotes() {
+  releaseNotesDialog.value = true;
+}
 </script>
 
 <template>
@@ -162,6 +203,19 @@ async function defaultOffset() {
         </template>
       </template>
     </Toast>
+
+    <Toast position="top-right" group="tr"/>
+
+    <div
+      v-if="updateAvailable"
+      class="w-full py-2 px-4 flex items-center justify-between text-sm font-semibold shadow bg-[var(--p-primary-500)] text-[var(--p-primary-contrast)]"
+    >
+      <span>Update available: <span class="font-bold">{{ pendingUpdate?.version ?? 'unknown' }}</span> (current version: {{ currentVersion }})</span>
+      <div class="flex items-center gap-2">
+        <Button label="Release Notes" size="small" severity="contrast" @click="showReleaseNotes" />
+        <Button icon="pi pi-download" severity="contrast" size="small" @click="downloadUpdate" :loading="isUpdating" />
+      </div>
+    </div>
 
     <div class="flex flex-col items-center p-4 gap-4">
 
@@ -201,6 +255,10 @@ async function defaultOffset() {
         <InputText v-model="vimeoAccessToken" placeholder="Access Token"/>
         <Button label="Save" @click="saveAuthentication"/>
       </div>
+    </Dialog>
+
+    <Dialog v-model:visible="releaseNotesDialog" modal header="Release Notes" class="max-w-lg">
+      <p class="whitespace-pre-wrap text-surface-700">{{ pendingUpdate?.body ?? 'No release notes available.' }}</p>
     </Dialog>
   </main>
 </template>
