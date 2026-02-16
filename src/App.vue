@@ -70,7 +70,7 @@ onUnmounted(() => {
 // -----------------------------------------------------------------------------
 
 function formatTimeRemaining(secondsLeft: number): string {
-  if (secondsLeft <= 0) return "Resetting now…";
+  if (secondsLeft <= 0) return "now!";
   const hours = Math.floor(secondsLeft / 3600);
   const minutes = Math.floor((secondsLeft % 3600) / 60);
   const seconds = Math.floor(secondsLeft % 60);
