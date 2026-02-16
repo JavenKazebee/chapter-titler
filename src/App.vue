@@ -170,6 +170,22 @@ async function checkForUpdates() {
   }
 }
 
+async function checkForUpdatesFromSettings() {
+  vimeoSettingsDialog.value = false;
+  try {
+    const update = await check();
+    if (update) {
+      pendingUpdate.value = update;
+      updateAvailable.value = true;
+      toast.add({ severity: "success", summary: "Update available", detail: `Version ${update.version} is available.`, life: 3000, group: "tr" });
+    } else {
+      toast.add({ severity: "info", summary: "Up to date", detail: "You're running the latest version.", life: 3000, group: "tr" });
+    }
+  } catch (err: any) {
+    toast.add({ severity: "error", summary: "Update check failed", detail: err?.message ?? "Could not check for updates.", group: "tr" });
+  }
+}
+
 async function downloadUpdate() {
   const update = pendingUpdate.value;
   if (!update) return;
@@ -252,13 +268,17 @@ function showReleaseNotes() {
 
     <Dialog v-model:visible="vimeoSettingsDialog" modal header="Vimeo Authentication">
       <div class="flex flex-col items-center gap-4">
-        <InputText v-model="vimeoAccessToken" placeholder="Access Token"/>
-        <Button label="Save" @click="saveAuthentication"/>
+        <div class="flex gap-2 w-full">
+          <InputText v-model="vimeoAccessToken" placeholder="Access Token" class="flex-1"/>
+          <Button label="Save" @click="saveAuthentication"/>
+        </div>
+        <Button class="mt-8"label="Check for Updates" severity="secondary" @click="checkForUpdatesFromSettings"/>
+        <span class="text-sm text-slate-500 font-bold">Version {{ currentVersion }}</span>
       </div>
     </Dialog>
 
     <Dialog v-model:visible="releaseNotesDialog" modal header="Release Notes" class="max-w-lg">
-      <p class="whitespace-pre-wrap text-surface-700">{{ pendingUpdate?.body ?? 'No release notes available.' }}</p>
+      <p class="whitespace-pre-wrap">{{ pendingUpdate?.body ?? 'No release notes available.' }}</p>
     </Dialog>
   </main>
 </template>

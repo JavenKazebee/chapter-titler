@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Custom app icons for all platforms
 - App is now "single instanced", so only one window will be open at a time
+- Check for updates button and current version in settings
 
 ## [0.1.0] - 2026-2-16
 ### Added
