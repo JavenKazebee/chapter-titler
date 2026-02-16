@@ -1,16 +1,67 @@
-# Tauri + Vue + TypeScript
+# Vimeo Chapter Titler
+> **Sync YouTube-style chapters to your Vimeo videos in seconds.**
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/your-username/vimeo-titler)
+![Tauri Version](https://img.shields.io/badge/Tauri-2.0-blue)
+![Rust](https://img.shields.io/badge/Rust-1.75+-orange)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Recommended IDE Setup
+Vimeo Chapter Titler is a desktop application built with **Tauri**, **Rust**, and **Vue 3** that automates the tedious process of manually entering timestamps and titles into Vimeo's interface.
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Features
+* **YouTube Format Support:** Copy/paste chapters directly from YouTube descriptions.
+* **Smart Parsing:** Handles various formats like `00:00 - Intro` or `01:23:45 - Chapter Title`.
+* **Live Rate-Limit Tracking:** Built-in countdown timers handle Vimeo's API limits gracefully.
+* **Real-time Progress:** See exactly which chapter is being uploaded.
+* **Auto-Updates:** Stay current with the latest fixes via the integrated Tauri Updater.
 
-## Type Support For `.vue` Imports in TS
+---
 
-Since TypeScript cannot handle type information for `.vue` imports, they are shimmed to be a generic Vue component type by default. In most cases this is fine if you don't really care about component prop types outside of templates. However, if you wish to get actual prop types in `.vue` imports (for example to get props validation when using manual `h(...)` calls), you can enable Volar's Take Over mode by following these steps:
+## Getting Started
 
-1. Run `Extensions: Show Built-in Extensions` from VS Code's command palette, look for `TypeScript and JavaScript Language Features`, then right click and select `Disable (Workspace)`. By default, Take Over mode will enable itself if the default TypeScript extension is disabled.
-2. Reload the VS Code window by running `Developer: Reload Window` from the command palette.
+### Prerequisites
+* **Vimeo Personal Access Token:** You need a token with `edit` and `video_files` scopes.
+* **Node.js & Rust:** (Required only if building from source).
 
-You can learn more about Take Over mode [here](https://github.com/johnsoncodehk/volar/discussions/471).
+### Installation
+1.  Download the latest release for your OS from the [Releases page](https://github.com/JavenKazebee/chapter-titler/releases).
+2.  Install the `.msi` (Windows) or `.dmg` (macOS).
+3.  Launch the app and enter your Vimeo Access Token in the settings.
+
+---
+
+## How to Use
+1.  **Input Video ID:** Enter the numeric ID found in your Vimeo URL (e.g., `123456789`).
+2.  **Add Chapters:** Paste your list into the text area. 
+    * *Correct Format:* `MM:SS - Title`
+3.  **Upload:** Click "Upload."
+4.  **Monitor:** Watch the progress bar. If you hit a rate limit, the app will pause and show a countdown until you can try again.
+
+## Development
+
+If you want to contribute or build the app yourself:
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run in development mode
+pnpm tauri dev
+
+# Build the production version
+pnpm tauri build
+```
+---
+
+## Contributing
+Contributions, issues, and feature requests are welcome!
+1. Fork the Project
+2. Create your Feature Branch (git checkout -b feature/AmazingFeature)
+3. Commit your Changes (git commit -m 'Add some AmazingFeature')
+4. Push to the Branch (git push origin feature/AmazingFeature)
+5. Open a Pull Request
+
+---
+
+## License
+Distributed under the MIT License. See [LICENSE](./LICENSE) for more information.
