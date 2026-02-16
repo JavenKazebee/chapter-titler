@@ -33,9 +33,9 @@ jobs:
 
       - name: read changelog
         id: changelog
-        shell: bash
-        run: |
-          echo "contents=$(cat CHANGELOG.md)" >> $GITHUB_OUTPUT
+        uses: mindsers/changelog-reader-action@v2.2.3
+        with:
+          path: ./CHANGELOG.md
 
       - name: build and release
         uses: tauri-apps/tauri-action@v0
@@ -44,9 +44,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: "Chapter Titler v__VERSION__"
-          releaseBody: "${{ steps.changelog.outputs.contents }}"
+          tagName: ${{ github.ref_name }}
+          releaseName: "Chapter Titler ${{ github.ref_name }}"
+          releaseBody: "${{ steps.changelog.outputs.changes }}"
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
