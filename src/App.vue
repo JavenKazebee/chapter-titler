@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { InputMask, InputText } from "primevue";
 import { load } from "@tauri-apps/plugin-store";
@@ -43,7 +43,7 @@ interface ProgressPayload {
 
 // Updater
 const currentVersion = ref("");
-const pendingUpdate = ref<Update | null>(null);
+const pendingUpdate = shallowRef<Update | null>(null);
 const updateAvailable = ref(false);
 const isUpdating = ref(false);
 const releaseNotesDialog = ref(false);
