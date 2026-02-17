@@ -96,6 +96,10 @@ async fn upload_chapter_titles(
         })
         .collect();
 
+    if chapters.is_empty() {
+        return Err(AppError::parse("No chapters found. Make sure you have at least one chapter after the offset.", 0, text));
+    }
+
     // Load access_token
     let store = handle
         .store("data.json")
