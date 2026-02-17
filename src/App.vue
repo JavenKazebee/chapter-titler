@@ -255,7 +255,7 @@ function showReleaseNotes() {
       </div>
 
       <div class="flex flex-col items-center gap-2 w-full max-w-md">
-        <Button label="Upload" @click="upload" :disabled="isUploading"/>
+        <Button label="Upload" @click="upload" :disabled="isUploading || !videoId.trim() || !chapterTitles.trim()"/>
         <template v-if="isUploading">
           <div class="w-full flex flex-col gap-1">
             <ProgressBar :value="progress" />

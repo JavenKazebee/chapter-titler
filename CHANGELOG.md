@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Alert if no chapter titles would be uploaded due to the offset
+- Video ID and chapter titles are required to enable the upload button
 
 ### Fixed
 - Fixed bug causing the auto-updater to throw an error when attempting to download the new version
