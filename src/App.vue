@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { marked } from "marked";
 import { invoke } from "@tauri-apps/api/core";
 import { InputMask, InputText } from "primevue";
 import { load } from "@tauri-apps/plugin-store";
@@ -203,6 +204,11 @@ async function downloadUpdate() {
 function showReleaseNotes() {
   releaseNotesDialog.value = true;
 }
+
+const releaseNotesHtml = computed(() => {
+  const body = pendingUpdate.value?.body ?? "No release notes available.";
+  return marked.parse(body, { async: false }) as string;
+});
 </script>
 
 <template>
@@ -228,7 +234,7 @@ function showReleaseNotes() {
     >
       <span>Update available: <span class="font-bold">{{ pendingUpdate?.version ?? 'unknown' }}</span> (current version: {{ currentVersion }})</span>
       <div class="flex items-center gap-2">
-        <Button label="Release Notes" size="small" severity="contrast" @click="showReleaseNotes" />
+        <Button label="What's new?" size="small" severity="contrast" @click="showReleaseNotes" />
         <Button icon="pi pi-download" severity="contrast" size="small" @click="downloadUpdate" :loading="isUpdating" />
       </div>
     </div>
@@ -278,7 +284,7 @@ function showReleaseNotes() {
     </Dialog>
 
     <Dialog v-model:visible="releaseNotesDialog" modal header="Release Notes" class="max-w-lg">
-      <p class="whitespace-pre-wrap">{{ pendingUpdate?.body ?? 'No release notes available.' }}</p>
+      <div class="prose prose-sm max-w-none prose-invert" v-html="releaseNotesHtml"></div>
     </Dialog>
   </main>
 </template>
