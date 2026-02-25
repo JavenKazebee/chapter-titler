@@ -9,13 +9,20 @@ struct ChapterTitle {
 }
 
 #[derive(Serialize, Clone)]
+struct UploadResult {
+    successful: usize,
+    total: usize,
+    error: Option<AppError>,
+}
+
+#[derive(Serialize, Clone)]
 struct ProgressPayload {
     current: usize,
     total: usize,
     title: String,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, Clone)]
 #[serde(tag = "type", content = "data")]
 enum AppError {
     Parse {
@@ -32,6 +39,9 @@ enum AppError {
     RateLimit {
         message: String,
         reset_time: String,
+    },
+    Offset {
+        message: String,
     },
 }
 
@@ -62,6 +72,12 @@ impl AppError {
             reset_time: reset_time.to_string(),
         }
     }
+
+    fn offset(message: &str) -> AppError {
+        AppError::Offset {
+            message: message.to_string(),
+        }
+    }
 }
 
 #[tauri::command]
@@ -70,12 +86,18 @@ async fn upload_chapter_titles(
     text: &str,
     offset: &str,
     handle: tauri::AppHandle,
-) -> Result<(), AppError> {
+) -> Result<UploadResult, AppError> {
+    let mut upload_result = UploadResult {
+        successful: 0,
+        total: 0,
+        error: None,
+    };
+
+    // Parse offset
     let offset = if offset.trim().is_empty() {
         0
     } else {
-        parse_timestamp(offset)
-            .map_err(|e| AppError::parse(&format!("Invalid offset ({})", e), 0, offset))?
+        parse_timestamp(offset).map_err(|e| AppError::offset(&format!("Invalid offset ({})", e)))?
     };
 
     // Parse chapters and apply offset
@@ -97,7 +119,11 @@ async fn upload_chapter_titles(
         .collect();
 
     if chapters.is_empty() {
-        return Err(AppError::parse("No chapters found. Make sure you have at least one chapter after the offset.", 0, text));
+        return Err(AppError::parse(
+            "No chapters found. Make sure you have at least one chapter after the offset.",
+            0,
+            text,
+        ));
     }
 
     // Load access_token
@@ -111,7 +137,7 @@ async fn upload_chapter_titles(
 
     // Upload chapters
     let client = reqwest::Client::new();
-    let total = chapters.len();
+    upload_result.total = chapters.len();
 
     for (i, chapter) in chapters.into_iter().enumerate() {
         // Send progress to frontend
@@ -120,12 +146,13 @@ async fn upload_chapter_titles(
                 "upload-progress",
                 ProgressPayload {
                     current: i + 1,
-                    total,
+                    total: upload_result.total,
                     title: chapter.title.clone(),
                 },
             )
             .unwrap();
 
+        println!("Uploading chapter {} of {} ({} - {})", i + 1, upload_result.total, chapter.timestamp, chapter.title);
         let response = client
             .post(format!(
                 "https://api.vimeo.com/videos/{}/chapters",
@@ -137,60 +164,90 @@ async fn upload_chapter_titles(
                 "title": chapter.title,
             }))
             .send()
-            .await
-            .map_err(|e| AppError::vimeo(&format!("Vimeo Issue ({e})")))?;
+            .await;
 
-        // If request gets a bad response, give error
-        if !response.status().is_success() {
-            let status = response.status().as_u16();
+        match response {
+            Ok(response) => {
+                if response.status().is_success() {
+                    upload_result.successful += 1;
+                } else {
+                    let status = response.status().as_u16();
 
-            match status {
-                401 => return Err(AppError::auth("Access token is invalid or expired.")),
+                    match status {
+                        400 => {
+                            let body: serde_json::Value = response.json().await.unwrap_or_default();
+    
+                            // Try to get the specific reason from the first invalid parameter
+                            let specific_reason = body["invalid_parameters"]
+                                .as_array()
+                                .and_then(|arr| arr.get(0))
+                                .and_then(|param| {
+                                    let field = param["field"].as_str().unwrap_or("unknown field");
+                                    let reason = param["reason"].as_str().unwrap_or("invalid value");
+                                    Some(format!("{}: {}", field, reason))
+                                })
+                                .unwrap_or_else(|| "Invalid request data".to_string());
 
-                403 => {
-                    return Err(AppError::vimeo(
-                        "You don't have permission to edit this video.",
-                    ))
-                }
+                            upload_result.error = Some(AppError::vimeo(&format!("Validation Error ({})", specific_reason)))
+                        }
 
-                404 => {
-                    return Err(AppError::vimeo(
-                        "Couldn't find video, double check the Video ID.",
-                    ))
-                }
+                        401 => upload_result.error = Some(AppError::auth("Access token is invalid or expired.")),
 
-                429 => {
-                    let reset_time = response
-                        .headers()
-                        .get("X-RateLimit-Reset")
-                        .and_then(|h| h.to_str().ok())
-                        .unwrap_or("unkown");
+                        403 => {
+                            upload_result.error = Some(AppError::vimeo(
+                                "You don't have permission to edit this video.",
+                            ))
+                        }
 
-                    return Err(AppError::rate_limit(
-                        "You've been rate limited.",
-                        reset_time,
-                    ));
-                }
+                        404 => {
+                            upload_result.error = Some(AppError::vimeo(
+                                "Couldn't find video, double check the Video ID.",
+                            ))
+                        }
 
-                500..=599 => {
-                    return Err(AppError::vimeo(
-                        "Vimeo is currenlty experiencing server issues. Please try again later.",
-                    ))
-                }
+                        429 => {
+                            let reset_time = response
+                                .headers()
+                                .get("X-RateLimit-Reset")
+                                .and_then(|h| h.to_str().ok())
+                                .unwrap_or("unkown");
 
-                _ => {
-                    let body: serde_json::Value = response.json().await.unwrap_or_default();
-                    let msg = body["developer_message"]
-                        .as_str()
-                        .unwrap_or("Unknown Vimeo API error.");
+                            upload_result.error = Some(AppError::rate_limit(
+                                "You've been rate limited.",
+                                reset_time,
+                            ));
+                        }
 
-                    return Err(AppError::vimeo(msg));
+                        500..=599 => {
+                            upload_result.error = Some(AppError::vimeo(
+                                "Vimeo is currently experiencing server issues. Please try again later.",
+                            ))
+                        }
+
+                        _ => {
+                            let body: serde_json::Value = response.json().await.unwrap_or_default();
+
+                            let msg = body["developer_message"]
+                                .as_str()
+                                .unwrap_or("Unknown Vimeo API error.");
+
+                            upload_result.error = Some(AppError::vimeo(&format!("{} - {}", status, msg)));
+                        }
+                    }
                 }
             }
+            Err(e) => {
+                upload_result.error = Some(AppError::vimeo(&format!("Vimeo Issue ({e})")));
+            }
+        }
+
+        // Stop uploading if an error occurs
+        if upload_result.error.is_some() {
+            break;
         }
     }
 
-    Ok(())
+    Ok(upload_result)
 }
 
 #[tauri::command]
@@ -285,7 +342,8 @@ fn parse_timestamp(timestamp_str: &str) -> Result<i32, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app.get_webview_window("main")
+            let _ = app
+                .get_webview_window("main")
                 .expect("No main window")
                 .set_focus();
         }))

@@ -32,6 +32,7 @@ const vimeoAccessToken = ref("");
 const isUploading = ref(false);
 const progress = ref(0);
 const statusMessage = ref("");
+const uploadResult = ref<UploadResult | null>(null);
 
 // Tauri Store
 let store: any = null;
@@ -40,6 +41,12 @@ interface ProgressPayload {
   current: number;
   total: number;
   title: string;
+}
+
+interface UploadResult {
+  successful: number;
+  total: number;
+  error?: { type: string; data?: { message?: string; reset_time?: string } };
 }
 
 // Updater
@@ -75,7 +82,7 @@ function formatTimeRemaining(secondsLeft: number): string {
   const hours = Math.floor(secondsLeft / 3600);
   const minutes = Math.floor((secondsLeft % 3600) / 60);
   const seconds = Math.floor(secondsLeft % 60);
-  const parts: string[] = [];
+  const parts: string[] = ["in"];
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0) parts.push(`${minutes}m`);
   parts.push(`${seconds}s`);
@@ -83,12 +90,14 @@ function formatTimeRemaining(secondsLeft: number): string {
 }
 
 function startRateLimitCountdown(resetTimeStr: string) {
-  const resetDate = new Date(resetTimeStr);
-  if (Number.isNaN(resetDate.getTime())) {
-    timeRemaining.value = resetTimeStr; // e.g. "unknown"
+  // Vimeo X-RateLimit-Reset is Unix seconds; allow ISO strings too
+  const resetMs = /^\d+$/.test(resetTimeStr)
+    ? parseInt(resetTimeStr, 10) * 1000
+    : new Date(resetTimeStr).getTime();
+  if (Number.isNaN(resetMs)) {
+    timeRemaining.value = resetTimeStr;
     return;
   }
-  const resetMs = resetDate.getTime();
   function tick() {
     const left = (resetMs - Date.now()) / 1000;
     timeRemaining.value = formatTimeRemaining(left);
@@ -112,6 +121,7 @@ async function saveAuthentication() {
 
 async function upload() {
   isUploading.value = true;
+  uploadResult.value = null;
   const listener = await listen<ProgressPayload>("upload-progress", (event) => {
     const { current, total, title } = event.payload;
     progress.value = Math.round((current / total) * 100);
@@ -119,25 +129,27 @@ async function upload() {
   });
 
   try {
-    await invoke('upload_chapter_titles', {
+    uploadResult.value = await invoke<UploadResult>('upload_chapter_titles', {
       videoId: videoId.value,
       text: chapterTitles.value,
       offset: offset.value ? offsetTime.value : "00:00",
     });
-  } catch (err: any) {
-    const { type, data } = err;
-    if (type === 'Parse') {
-      toast.add({ severity: 'error', summary: 'Parsing Error', detail: `Typo on line ${data.line_number}: ${data.message}\n"${data.raw_line}"`, group: 'bc' });
-    } else if (type === 'Auth') {
-      toast.add({ severity: 'error', summary: 'Authentication Error', detail: `Authentication Error: ${data.message}`, group: 'bc' });
-    } else if (type === 'Vimeo') {
-      toast.add({ severity: 'error', summary: 'Vimeo Error', detail: `Vimeo Error: ${data.message}`, group: 'bc' });
-    } else if (type == 'RateLimit') {
-      startRateLimitCountdown(data.reset_time);
-      toast.add({ severity: 'error', summary: 'Rate Limit Error', detail: data.message, group: 'bc' });
-    } else {
-      toast.add({ severity: 'error', summary: 'Unknown Error', detail: 'An uknown error has occured.', group: 'bc' });
+
+    console.log(uploadResult.value);
+    console.log(`Is Successful: ${uploadCardSuccess.value}`);
+    console.log(`Is Rate Limit: ${uploadResultIsRateLimit.value}`);
+    console.log(`Failed Count: ${uploadCardFailedCount.value}`);
+    if (uploadResult.value.error?.type === 'RateLimit' && uploadResult.value.error?.data?.reset_time) {
+      startRateLimitCountdown(uploadResult.value.error.data.reset_time);
     }
+  } catch (err: any) {
+    const message = err?.data?.message;
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: message ?? 'An unknown error has occurred.',
+      group: 'bc',
+    });
   } finally {
     listener();
     isUploading.value = false;
@@ -209,6 +221,18 @@ const releaseNotesHtml = computed(() => {
   const body = pendingUpdate.value?.body ?? "No release notes available.";
   return marked.parse(body, { async: false }) as string;
 });
+
+const showUploadCard = computed(() => isUploading.value || uploadResult.value !== null);
+const uploadCardSuccess = computed(() => {
+  const r = uploadResult.value;
+  return r !== null && !r.error;
+});
+const uploadCardFailedCount = computed(() => {
+  const r = uploadResult.value;
+  if (!r?.error) return 0;
+  return r.total - r.successful;
+});
+const uploadResultIsRateLimit = computed(() => uploadResult.value?.error?.type === 'RateLimit');
 </script>
 
 <template>
@@ -262,12 +286,44 @@ const releaseNotesHtml = computed(() => {
 
       <div class="flex flex-col items-center gap-2 w-full max-w-md">
         <Button label="Upload" @click="upload" :disabled="isUploading || !videoId.trim() || !chapterTitles.trim()"/>
-        <template v-if="isUploading">
-          <div class="w-full flex flex-col gap-1">
-            <ProgressBar :value="progress" />
-            <span class="text-sm text-surface-600 truncate text-center">{{ statusMessage }}</span>
-          </div>
-        </template>
+        <div
+          v-if="showUploadCard"
+          :class="[
+            'w-full transition-colors rounded-lg overflow-hidden'
+          ]"
+        >
+        <Card
+          class="w-full"
+          :class="uploadResult
+            ? (uploadCardSuccess ? 'border-3 !bg-green-500/5 border-green-500/50' : 'border-3 !bg-red-500/5 border-red-500/50')
+            : ''"
+        >
+          <template #content>
+            <template v-if="isUploading">
+              <div class="flex flex-col gap-1 upload-progress">
+                <ProgressBar :value="progress" />
+                <span class="text-sm text-surface-600 truncate text-center">{{ statusMessage }}</span>
+              </div>
+            </template>
+            <template v-else-if="uploadResult">
+              <div class="flex flex-col gap-1 text-center">
+                <span class="font-medium">
+                  {{ uploadResult.successful }}/{{ uploadResult.total }} uploaded
+                </span>
+                <span v-if="uploadResult.error" class="text-sm">
+                  {{ uploadResult.error.data?.message }}
+                </span>
+                <div
+                  v-if="uploadResultIsRateLimit && timeRemaining"
+                  class="text-sm mt-1"
+                >
+                  Try again in <strong>{{ timeRemaining }}</strong>
+                </div>
+              </div>
+            </template>
+          </template>
+        </Card>
+        </div>
       </div>
     </div>
 
@@ -288,3 +344,10 @@ const releaseNotesHtml = computed(() => {
     </Dialog>
   </main>
 </template>
+
+<style scoped>
+/* Snappy progress bar so it keeps up with fast upload updates */
+.upload-progress :deep(.p-progressbar-value) {
+  transition-duration: 0.3s;
+}
+</style>

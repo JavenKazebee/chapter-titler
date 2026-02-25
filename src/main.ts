@@ -14,6 +14,7 @@ import InputMask from 'primevue/inputmask';
 import Dialog from 'primevue/dialog';
 import ProgressBar from "primevue/progressbar";
 import Toast from 'primevue/toast';
+import Card from 'primevue/card';
 
 const app = createApp(App);
 app.use(PrimeVue, {
@@ -33,5 +34,6 @@ app.component('Checkbox', Checkbox);
 app.component('InputMask', InputMask);
 app.component('Dialog', Dialog);
 app.component('ProgressBar', ProgressBar);
+app.component('Card', Card);
 
 app.mount("#app");
