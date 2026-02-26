@@ -1,2 +1,35 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
+
+/* Toast: less transparent backgrounds + higher-contrast text (override PrimeVue Aura defaults) */
+.p-toast-message-info {
+  background: color-mix(in srgb, var(--p-blue-500, #3b82f6) 60%, transparent) !important;
+  color: var(--p-surface-0, #ffffff) !important;
+}
+.p-toast-message-info .p-toast-summary,
+.p-toast-message-info .p-toast-detail {
+  color: var(--p-surface-0, #ffffff) !important;
+}
+.p-toast-message-success {
+  background: color-mix(in srgb, var(--p-green-500, #22c55e) 60%, transparent) !important;
+  color: var(--p-surface-0, #ffffff) !important;
+}
+.p-toast-message-success .p-toast-summary,
+.p-toast-message-success .p-toast-detail {
+  color: var(--p-surface-0, #ffffff) !important;
+}
+.p-toast-message-warn {
+  background: color-mix(in srgb, var(--p-yellow-500, #eab308) 60%, transparent) !important;
+  color: var(--p-surface-0, #ffffff) !important;
+}
+.p-toast-message-warn .p-toast-summary,
+.p-toast-message-warn .p-toast-detail {
+  color: var(--p-surface-0, #ffffff) !important;
+}
+.p-toast-message-error {
+  background: color-mix(in srgb, var(--p-red-500, #ef4444) 60%, transparent) !important;
+  color: var(--p-surface-0, #ffffff) !important;
+}
+.p-toast-message-error .p-toast-summary,
+.p-toast-message-error .p-toast-detail {
+  color: var(--p-surface-0, #ffffff) !important;
+}
