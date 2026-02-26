@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Better display for error messages and upload progress
+- Improved toast legibility
 
 ## [1.1.0] - 2026-2-16
 ### Added
