@@ -1,7 +1,7 @@
 # Vimeo Chapter Titler
 > **Sync YouTube-style chapters to your Vimeo videos in seconds.**
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/JavenKazebee/vimeo-titler)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/JavenKazebee/chapter-titler)
 ![Tauri Version](https://img.shields.io/badge/Tauri-2.0-blue)
 ![Rust](https://img.shields.io/badge/Rust-1.75+-orange)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
