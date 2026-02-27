@@ -46,7 +46,41 @@ interface ProgressPayload {
 interface UploadResult {
   successful: number;
   total: number;
-  error?: { type: string; data?: { message?: string; reset_time?: string } };
+  error?: {
+    type: string;
+    data?: {
+      message?: string;
+      line_number?: number;
+      raw_line?: string;
+      reset_time?: string;
+    };
+  };
+}
+
+function formatUploadError(error: { type: string; data?: Record<string, unknown> }): {
+  title: string;
+  detail: string;
+} {
+  const t = error.type;
+  const d = error.data ?? {};
+  const msg = d.message as string | undefined;
+  switch (t) {
+    case "Parse":
+      return {
+        title: "Parse Error",
+        detail: `Line ${d.line_number} - ${msg} ("${d.raw_line}")`,
+      };
+    case "Auth":
+      return { title: "Authentication Error", detail: msg ?? "Authentication failed" };
+    case "Vimeo":
+      return { title: "Vimeo Error", detail: msg ?? "Vimeo API error" };
+    case "RateLimit":
+      return { title: "Rate Limit Error", detail: msg ?? "You've been rate limited." };
+    case "Offset":
+      return { title: "Offset Error", detail: msg ?? "Invalid offset" };
+    default:
+      return { title: "Error", detail: (msg as string) ?? "An unknown error has occurred." };
+  }
 }
 
 // Updater
@@ -78,11 +112,10 @@ onUnmounted(() => {
 // -----------------------------------------------------------------------------
 
 function formatTimeRemaining(secondsLeft: number): string {
-  if (secondsLeft <= 0) return "now!";
   const hours = Math.floor(secondsLeft / 3600);
   const minutes = Math.floor((secondsLeft % 3600) / 60);
   const seconds = Math.floor(secondsLeft % 60);
-  const parts: string[] = ["in"];
+  const parts: string[] = [];
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0) parts.push(`${minutes}m`);
   parts.push(`${seconds}s`);
@@ -104,6 +137,7 @@ function startRateLimitCountdown(resetTimeStr: string) {
     if (left <= 0 && rateLimitIntervalId.value !== null) {
       clearInterval(rateLimitIntervalId.value);
       rateLimitIntervalId.value = null;
+      timeRemaining.value = "";
     }
   }
   tick();
@@ -144,13 +178,9 @@ async function upload(startIndex: number) {
       startRateLimitCountdown(uploadResult.value.error.data.reset_time);
     }
   } catch (err: any) {
-    const message = err?.data?.message;
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: message ?? 'An unknown error has occurred.',
-      group: 'bc',
-    });
+    const error =
+      err?.type != null && err?.data != null ? err : { type: 'Error', data: { message: err?.message ?? 'An unknown error has occurred.' } };
+    uploadResult.value = { successful: 0, total: 0, error };
   } finally {
     listener();
     isUploading.value = false;
@@ -234,6 +264,10 @@ const uploadCardFailedCount = computed(() => {
   return r.total - r.successful;
 });
 const uploadResultIsRateLimit = computed(() => uploadResult.value?.error?.type === 'RateLimit');
+const uploadErrorFormatted = computed(() => {
+  const err = uploadResult.value?.error;
+  return err ? formatUploadError(err) : null;
+});
 const uploadResultIsPartialSuccess = computed(() => {
   const r = uploadResult.value;
   return r !== null && r.successful >= 1 && r.successful < r.total;
@@ -316,15 +350,16 @@ const uploadResultIsPartialSuccess = computed(() => {
                   <span class="font-medium">
                     {{ uploadResult.successful }}/{{ uploadResult.total }} uploaded
                   </span>
-                  <span v-if="uploadResult.error" class="text-sm">
-                    {{ uploadResult.error.data?.message }}
-                  </span>
-                  <div
-                    v-if="uploadResultIsRateLimit && timeRemaining"
-                    class="text-sm mt-1"
-                  >
-                    Try again in <strong>{{ timeRemaining }}</strong>
-                  </div>
+                  <template v-if="uploadErrorFormatted">
+                    <span class="text-sm font-semibold">{{ uploadErrorFormatted.title }}</span>
+                    <span class="text-sm">{{ uploadErrorFormatted.detail }}</span>
+                    <div
+                      v-if="uploadResultIsRateLimit && timeRemaining"
+                      class="text-sm mt-1"
+                    >
+                      Try again in <strong>{{ timeRemaining }}</strong>
+                    </div>
+                  </template>
                 </div>
                 <Button
                   v-if="uploadResultIsPartialSuccess"
