@@ -119,7 +119,7 @@ async function saveAuthentication() {
   await store.set('access_token', vimeoAccessToken.value);
 }
 
-async function upload() {
+async function upload(startIndex: number) {
   isUploading.value = true;
   uploadResult.value = null;
   const listener = await listen<ProgressPayload>("upload-progress", (event) => {
@@ -133,6 +133,7 @@ async function upload() {
       videoId: videoId.value,
       text: chapterTitles.value,
       offset: offset.value ? offsetTime.value : "00:00",
+      startIndex
     });
 
     console.log(uploadResult.value);
@@ -233,6 +234,10 @@ const uploadCardFailedCount = computed(() => {
   return r.total - r.successful;
 });
 const uploadResultIsRateLimit = computed(() => uploadResult.value?.error?.type === 'RateLimit');
+const uploadResultIsPartialSuccess = computed(() => {
+  const r = uploadResult.value;
+  return r !== null && r.successful >= 1 && r.successful < r.total;
+});
 </script>
 
 <template>
@@ -285,7 +290,7 @@ const uploadResultIsRateLimit = computed(() => uploadResult.value?.error?.type =
       </div>
 
       <div class="flex flex-col items-center gap-2 w-full max-w-md">
-        <Button label="Upload" @click="upload" :disabled="isUploading || !videoId.trim() || !chapterTitles.trim()"/>
+        <Button label="Upload" @click="upload(0)" :disabled="isUploading || !videoId.trim() || !chapterTitles.trim()"/>
         <div
           v-if="showUploadCard"
           :class="[
@@ -306,19 +311,27 @@ const uploadResultIsRateLimit = computed(() => uploadResult.value?.error?.type =
               </div>
             </template>
             <template v-else-if="uploadResult">
-              <div class="flex flex-col gap-1 text-center">
-                <span class="font-medium">
-                  {{ uploadResult.successful }}/{{ uploadResult.total }} uploaded
-                </span>
-                <span v-if="uploadResult.error" class="text-sm">
-                  {{ uploadResult.error.data?.message }}
-                </span>
-                <div
-                  v-if="uploadResultIsRateLimit && timeRemaining"
-                  class="text-sm mt-1"
-                >
-                  Try again in <strong>{{ timeRemaining }}</strong>
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                  <span class="font-medium">
+                    {{ uploadResult.successful }}/{{ uploadResult.total }} uploaded
+                  </span>
+                  <span v-if="uploadResult.error" class="text-sm">
+                    {{ uploadResult.error.data?.message }}
+                  </span>
+                  <div
+                    v-if="uploadResultIsRateLimit && timeRemaining"
+                    class="text-sm mt-1"
+                  >
+                    Try again in <strong>{{ timeRemaining }}</strong>
+                  </div>
                 </div>
+                <Button
+                  v-if="uploadResultIsPartialSuccess"
+                  label="Finish Upload"
+                  severity="secondary"
+                  @click="upload(uploadResult.successful)"
+                />
               </div>
             </template>
           </template>

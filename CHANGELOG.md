@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Gives user feedback on how many chapter titles were successfully uploaded
+- Can retry uploading just the chapter titles that failed
 
 ### Fixed
 - Better display for error messages and upload progress

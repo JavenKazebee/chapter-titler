@@ -85,6 +85,7 @@ async fn upload_chapter_titles(
     video_id: &str,
     text: &str,
     offset: &str,
+    start_index: usize,
     handle: tauri::AppHandle,
 ) -> Result<UploadResult, AppError> {
     let mut upload_result = UploadResult {
@@ -101,9 +102,9 @@ async fn upload_chapter_titles(
     };
 
     // Parse chapters and apply offset
-    let mut chapters = parse_chapter_titles(text)?;
+    let chapters = parse_chapter_titles(text)?;
 
-    chapters = chapters
+    let chapters: Vec<ChapterTitle> = chapters
         .into_iter()
         .filter_map(|mut chapter| {
             let new_timestamp = chapter.timestamp - offset;
@@ -117,6 +118,13 @@ async fn upload_chapter_titles(
             }
         })
         .collect();
+
+    // Store total number of chapters before applying start index
+    upload_result.total = chapters.len();
+    upload_result.successful = start_index;
+
+    // Apply start index
+    let chapters: Vec<ChapterTitle> = chapters.into_iter().skip(start_index).collect();
 
     if chapters.is_empty() {
         return Err(AppError::parse(
@@ -137,7 +145,6 @@ async fn upload_chapter_titles(
 
     // Upload chapters
     let client = reqwest::Client::new();
-    upload_result.total = chapters.len();
 
     for (i, chapter) in chapters.into_iter().enumerate() {
         // Send progress to frontend
